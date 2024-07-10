@@ -1,0 +1,18 @@
+{
+  "logo": "logo.png",
+  "main": "index.html",
+  "preload": "preload.js",
+  "name": "zw2toefe",
+  "version": "1.0.0",
+  "pluginName": "Socket Man",
+  "description": "模拟websocket的客户端与服务端，提高websocket调试体验",
+  "author": "余闲",
+  "homepage": "https://github.com/iHeyTang",
+  "features": [
+    {
+      "code": "websocket",
+      "explain": "插件模板主界面",
+      "cmds": ["websocket", "ws", "socket"]
+    }
+  ]
+}
