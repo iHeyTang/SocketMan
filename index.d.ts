@@ -10,6 +10,7 @@ export interface WebsocketServer {
   send: (keys: string[], message: string) => void;
   broadcast: (message: string) => void;
   close: () => void;
+  onError: (callback: (error: Error) => void) => void;
   onBroadcast: (callback: (message: string) => void) => void;
   onSend: (callback: (key: string, message: string) => void) => void;
   onMessage: (callback: (key: string, message: string) => void) => void;

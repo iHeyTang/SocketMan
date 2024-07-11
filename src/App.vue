@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref, reactive, watch, watchEffect, WatchStopHandle } from 'vue';
 import { CirclePlus } from '@element-plus/icons-vue';
 import type { WebsocketServer } from '..';
 
@@ -34,12 +34,14 @@ type ServerLogType =
   | { type: 'connection'; clientKey: string }
   | { type: 'disconnection'; clientKey: string }
   | { type: 'listen' }
-  | { type: 'close' };
+  | { type: 'close' }
+  | { type: 'error'; errMsg: string };
 
 type ClientLogType =
   | { type: 'message'; messageType: 'receive' | 'send'; message: string }
   | { type: 'connection'; id: string }
-  | { type: 'disconnection'; id: string };
+  | { type: 'disconnection'; id: string; reason: string }
+  | { type: 'error' };
 
 /**
  * 服务端实例
@@ -59,6 +61,7 @@ type SocketClient = {
   href: string;
   config: SocketManClientConfig;
   socket?: WebSocket;
+  info?: { readyState: WebSocket['readyState'] };
   logs: ClientLogType[];
 };
 
@@ -68,6 +71,7 @@ const messageTypeHighlight: Record<ServerLogType['type'], string> = {
   disconnection: 'red',
   listen: 'purple',
   close: 'gray',
+  error: 'red',
 };
 
 const addDialogVisible = ref(false);
@@ -114,6 +118,20 @@ const handleAddCommit = () => {
   addDialogVisible.value = false;
 };
 
+const autoScroll = (eleId: string) => {
+  const logsContainer = document.getElementById(eleId);
+  // 在最底端或内容没有充满屏幕时进行自动滚动
+  if (
+    logsContainer &&
+    (logsContainer.scrollHeight === logsContainer.scrollTop ||
+      logsContainer.scrollHeight - logsContainer.scrollTop < logsContainer.clientHeight + 100)
+  ) {
+    setTimeout(() => {
+      logsContainer.scrollTop = logsContainer.scrollHeight;
+    }, 0);
+  }
+};
+
 const handleStartServer = (id: string) => {
   const inst = instances.servers[id];
   if (!inst) return;
@@ -121,58 +139,62 @@ const handleStartServer = (id: string) => {
   instances.servers[id].server = server;
   instances.servers[id].info = server.getInfo();
 
+  server.onError((err) => {
+    const inst = instances.servers[id];
+    if (!inst) return;
+    inst.logs.push({ type: 'error', errMsg: err.message });
+    autoScroll('serverLogsContainer');
+  });
+
   server.onConnection((key) => {
     const inst = instances.servers[id];
     if (!inst) return;
     inst.info = server.getInfo();
     inst.logs.push({ type: 'connection', clientKey: key });
+    autoScroll('serverLogsContainer');
   });
 
   server.onDisconnection(() => {
     const inst = instances.servers[id];
     if (!inst) return;
     inst.info = server.getInfo();
+    inst.logs.push({ type: 'disconnection', clientKey: id });
+    autoScroll('serverLogsContainer');
   });
 
   server.onMessage((key, message) => {
     const inst = instances.servers[id];
     if (!inst) return;
     inst.logs.push({ type: 'message', messageType: 'receive', clientKey: key, message });
-    const logsContainer = document.getElementById('serverLogsContainer');
-    // 在最底端或内容没有充满屏幕时进行自动滚动
-    if (
-      logsContainer &&
-      (logsContainer.scrollHeight === logsContainer.scrollTop ||
-        logsContainer.scrollHeight - logsContainer.scrollTop < logsContainer.clientHeight + 100)
-    ) {
-      setTimeout(() => {
-        logsContainer.scrollTop = logsContainer.scrollHeight;
-      }, 0);
-    }
+    autoScroll('serverLogsContainer');
   });
 
   server.onBroadcast((message) => {
     const inst = instances.servers[id];
     if (!inst) return;
     inst.logs.push({ type: 'message', messageType: 'broadcast', clientKey: '', message });
+    autoScroll('serverLogsContainer');
   });
 
   server.onSend((key, message) => {
     const inst = instances.servers[id];
     if (!inst) return;
     inst.logs.push({ type: 'message', messageType: 'send', clientKey: key, message });
+    autoScroll('serverLogsContainer');
   });
 
   server.onListen(() => {
     const inst = instances.servers[id];
     if (!inst) return;
     inst.logs.push({ type: 'listen' });
+    autoScroll('serverLogsContainer');
   });
 
   server.onClose(() => {
     const inst = instances.servers[id];
     if (!inst) return;
     inst.logs.push({ type: 'close' });
+    autoScroll('serverLogsContainer');
   });
 };
 
@@ -194,27 +216,26 @@ const handleStartClient = (id: string) => {
   const socket = new WebSocket(inst.href);
   instances.clients[id].socket = socket;
 
-  socket.onopen = () => {
-    inst.logs.push({ type: 'connection', id });
+  socket.onerror = () => {
+    inst.logs.push({ type: 'error' });
+    autoScroll('clientLogsContainer');
   };
 
-  socket.onclose = () => {
-    inst.logs.push({ type: 'disconnection', id });
+  socket.onopen = () => {
+    inst.logs.push({ type: 'connection', id });
+    autoScroll('clientLogsContainer');
+    inst.info = { ...(inst.info || {}), readyState: socket.readyState };
+  };
+
+  socket.onclose = (e) => {
+    inst.logs.push({ type: 'disconnection', id, reason: e.reason || 'Unknown reason' });
+    autoScroll('clientLogsContainer');
+    inst.info = { ...(inst.info || {}), readyState: socket.readyState };
   };
 
   socket.onmessage = (event) => {
     inst.logs.push({ type: 'message', messageType: 'receive', message: event.data });
-    const logsContainer = document.getElementById('clientLogsContainer');
-    // 在最底端或内容没有充满屏幕时进行自动滚动
-    if (
-      logsContainer &&
-      (logsContainer.scrollHeight === logsContainer.scrollTop ||
-        logsContainer.scrollHeight - logsContainer.scrollTop < logsContainer.clientHeight + 100)
-    ) {
-      setTimeout(() => {
-        logsContainer.scrollTop = logsContainer.scrollHeight;
-      }, 0);
-    }
+    autoScroll('clientLogsContainer');
   };
 };
 
@@ -228,17 +249,7 @@ const handlerClientSend = () => {
   if (!inst) return;
   inst.socket?.send(clientTextarea.value);
   inst.logs.push({ type: 'message', messageType: 'send', message: clientTextarea.value });
-  const logsContainer = document.getElementById('clientLogsContainer');
-  // 在最底端或内容没有充满屏幕时进行自动滚动
-  if (
-    logsContainer &&
-    (logsContainer.scrollHeight === logsContainer.scrollTop ||
-      logsContainer.scrollHeight - logsContainer.scrollTop < logsContainer.clientHeight + 100)
-  ) {
-    setTimeout(() => {
-      logsContainer.scrollTop = logsContainer.scrollHeight;
-    }, 0);
-  }
+  autoScroll('clientLogsContainer');
 };
 </script>
 
@@ -312,6 +323,7 @@ const handlerClientSend = () => {
               <div v-if="log.type === 'message'" style="white-space: pre-wrap; word-wrap: break-word">{{ log.message }}</div>
               <div v-if="log.type === 'connection'">{{ log.clientKey }}</div>
               <div v-if="log.type === 'disconnection'">{{ log.clientKey }}</div>
+              <div v-if="log.type === 'error'">{{ log.errMsg }}</div>
             </div>
           </el-card>
           <el-card v-if="infoTabKey === 'clients'" style="height: calc(100% - 4px); overflow: scroll">
@@ -340,10 +352,16 @@ const handlerClientSend = () => {
               <div>({{ instances.clients[activeKey].href }})</div>
             </div>
             <div>
-              <el-button v-if="!instances.clients[activeKey].socket?.OPEN" @click="handleStartClient(instances.clients[activeKey].config.id)">
+              <el-button
+                v-if="instances.clients[activeKey].info?.readyState !== 1"
+                @click="handleStartClient(instances.clients[activeKey].config.id)"
+              >
                 启动
               </el-button>
-              <el-button v-if="instances.clients[activeKey].socket?.OPEN" @click="handleCloseClient(instances.clients[activeKey].config.id)">
+              <el-button
+                v-if="instances.clients[activeKey].info?.readyState === 1"
+                @click="handleCloseClient(instances.clients[activeKey].config.id)"
+              >
                 关闭
               </el-button>
             </div>
@@ -360,7 +378,7 @@ const handlerClientSend = () => {
               </div>
               <div v-if="log.type === 'message'" style="white-space: pre-wrap; word-wrap: break-word">{{ log.message }}</div>
               <div v-if="log.type === 'connection'">{{ log.id }}</div>
-              <div v-if="log.type === 'disconnection'">{{ log.id }}</div>
+              <div v-if="log.type === 'disconnection'">{{ log.id }} {{ log.reason }}</div>
             </div>
           </el-card>
         </el-main>

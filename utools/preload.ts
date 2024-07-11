@@ -8,6 +8,7 @@ window.ws = {
     const socketKeys: string[] = [];
     const sockets: Record<string, Socket> = {};
 
+    const errorHandlers: Parameters<WebsocketServer['onError']>[0][] = [];
     const connectionHandlers: Parameters<WebsocketServer['onConnection']>[0][] = [];
     const disconnectionHandlers: Parameters<WebsocketServer['onDisconnection']>[0][] = [];
     const messageHandlers: Parameters<WebsocketServer['onMessage']>[0][] = [];
@@ -104,6 +105,10 @@ window.ws = {
       listenHandlers.forEach((handler) => handler());
     });
 
+    server.on('error', (err) => {
+      errorHandlers.forEach((handler) => handler(err));
+    });
+
     const send = (key: string, message: string) => {
       const MAX_FRAME_SIZE = 125; // 设置最大帧大小
       let messageLength = Buffer.byteLength(message);
@@ -140,6 +145,9 @@ window.ws = {
         port,
         clients: Object.keys(sockets),
       }),
+      onError: (callback) => {
+        errorHandlers.push(callback);
+      },
       onConnection: (callback) => {
         connectionHandlers.push(callback);
       },
