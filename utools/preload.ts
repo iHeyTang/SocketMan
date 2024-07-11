@@ -29,8 +29,9 @@ window.ws = {
 
     const server = createServer((req, res) => {
       if (req.method === "GET" && req.url) {
-        const { headers, url } = req;
-        if (url === "/ws") {
+        const { headers } = req;
+        // TODO: 暂时不对请求路径进行校验
+        if (true) {
           if (
             headers.upgrade &&
             headers.upgrade.toLowerCase() === "websocket"
