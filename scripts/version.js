@@ -12,7 +12,7 @@ if (status) {
  * @typedef {'minor' | 'major' | 'patch'} releaseType
  */
 const releaseType = process.argv[0];
-if (!['minor', 'major', 'patch'].includes(upgrade)) {
+if (!['minor', 'major', 'patch'].includes(releaseType)) {
   console.error('Invalid version release type');
   process.exit(1);
 }
