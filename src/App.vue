@@ -14,7 +14,7 @@ type SocketManServerConfig = {
   // 使用协议
   protocol: string;
   // 端口号
-  port: number;
+  port: string;
 };
 
 /**
@@ -76,6 +76,7 @@ const messageTypeHighlight: Record<ServerLogType['type'], string> = {
 
 const addDialogVisible = ref(false);
 const addType = ref<'server' | 'client'>('server');
+const formMode = ref<'add' | 'edit'>('add');
 
 const infoTabKey = ref<'logs' | 'clients'>('logs');
 
@@ -92,7 +93,7 @@ const addServerForm = reactive<SocketManServerConfig>({
   id: '',
   name: 'ws://localhost:9290',
   protocol: 'ws',
-  port: 9290,
+  port: '9290',
 });
 const addClientForm = reactive<SocketManClientConfig>({
   id: '',
@@ -101,19 +102,29 @@ const addClientForm = reactive<SocketManClientConfig>({
 });
 
 const handleAddCommit = () => {
-  const id = Date.now().toString();
-  if (addType.value === 'server') {
-    instances.servers[id] = {
-      href: `ws://localhost:${addServerForm.port}`,
-      config: { ...addServerForm, id },
-      logs: [],
-    };
-  } else if (addType.value === 'client') {
-    instances.clients[id] = {
-      href: addClientForm.uri,
-      config: { ...addClientForm, id },
-      logs: [],
-    };
+  if (formMode.value === 'add') {
+    const id = Date.now().toString();
+    if (addType.value === 'server') {
+      instances.servers[id] = {
+        href: `ws://localhost:${addServerForm.port}`,
+        config: { ...addServerForm, id },
+        logs: [],
+      };
+    } else if (addType.value === 'client') {
+      instances.clients[id] = {
+        href: addClientForm.uri,
+        config: { ...addClientForm, id },
+        logs: [],
+      };
+    }
+  } else {
+    if (addType.value === 'server') {
+      instances.servers[addServerForm.id].config = { ...addServerForm };
+      instances.servers[addServerForm.id].href = `ws://localhost:${addServerForm.port}`;
+    } else if (addType.value === 'client') {
+      instances.clients[addClientForm.id].config = { ...addClientForm };
+      instances.clients[addClientForm.id].href = addClientForm.uri;
+    }
   }
   addDialogVisible.value = false;
 };
@@ -240,8 +251,12 @@ const handleStartClient = (id: string) => {
 };
 
 const handleCloseClient = (id: string) => {
-  instances.clients[id].socket?.close();
+  const inst = instances.clients[id];
+  inst.socket?.close();
+  inst.info = undefined;
   delete instances.clients[id].socket;
+  inst.logs.push({ type: 'disconnection', id, reason: '客户端主动关闭' });
+  autoScroll('clientLogsContainer');
 };
 
 const handlerClientSend = () => {
@@ -250,6 +265,28 @@ const handlerClientSend = () => {
   inst.socket?.send(clientTextarea.value);
   inst.logs.push({ type: 'message', messageType: 'send', message: clientTextarea.value });
   autoScroll('clientLogsContainer');
+};
+
+const handleEditServer = (id: string) => {
+  const inst = instances.servers[id];
+  if (!inst) return;
+  addType.value = 'server';
+  addServerForm.id = inst.config.id;
+  addServerForm.name = inst.config.name;
+  addServerForm.port = inst.config.port;
+  formMode.value = 'edit';
+  addDialogVisible.value = true;
+};
+
+const handleEditClient = (id: string) => {
+  const inst = instances.clients[id];
+  if (!inst) return;
+  addType.value = 'client';
+  addClientForm.id = inst.config.id;
+  addClientForm.name = inst.config.name;
+  addClientForm.uri = inst.config.uri;
+  formMode.value = 'edit';
+  addDialogVisible.value = true;
 };
 </script>
 
@@ -286,16 +323,33 @@ const handlerClientSend = () => {
           </el-sub-menu>
         </el-menu>
         <div :style="{ position: 'absolute', left: 0, bottom: 0, padding: '20px', width: '160px', display: 'flex', justifyContent: 'center' }">
-          <el-button @click="addDialogVisible = true" :icon="CirclePlus" :style="{ width: '100%' }"> 添加 </el-button>
+          <el-button
+            @click="
+              formMode = 'add';
+              addDialogVisible = true;
+            "
+            :icon="CirclePlus"
+            :style="{ width: '100%' }"
+          >
+            添加
+          </el-button>
         </div>
       </el-aside>
       <el-container v-if="activeKey && instances.servers[activeKey]?.config">
         <el-header height="fit-content" style="text-align: start; padding: 16px 16px 0 16px">
           <div :style="{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }">
             <div>
-              <div :style="{ fontWeight: 'bold' }">{{ instances.servers[activeKey].config.name }}</div>
-              <div>({{ instances.servers[activeKey].href }})</div>
+              <el-tag v-if="instances.servers[activeKey].info?.listening" disable-transitions type="success" :style="{ fontWeight: 'bold' }">
+                {{ instances.servers[activeKey].config.name }}
+              </el-tag>
+              <el-tag v-if="!instances.servers[activeKey].info?.listening" disable-transitions type="info" :style="{ fontWeight: 'bold' }">
+                {{ instances.servers[activeKey].config.name }}
+              </el-tag>
+              <div style="padding-left: 10px; font-size: 12px">{{ instances.servers[activeKey].href }}</div>
             </div>
+            <el-button-group v-if="!instances.servers[activeKey].info?.listening">
+              <el-button @click="handleEditServer(instances.servers[activeKey].config.id)">配置</el-button>
+            </el-button-group>
             <el-radio-group v-if="instances.servers[activeKey].info?.listening" v-model="infoTabKey">
               <el-radio-button value="logs">Logs</el-radio-button>
               <el-radio-button value="clients">Clients</el-radio-button>
@@ -348,9 +402,17 @@ const handlerClientSend = () => {
         <el-header height="fit-content" style="text-align: start; padding: 16px 16px 0 16px">
           <div :style="{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }">
             <div>
-              <div :style="{ fontWeight: 'bold' }">{{ instances.clients[activeKey].config.name }}</div>
-              <div>({{ instances.clients[activeKey].href }})</div>
+              <el-tag v-if="instances.clients[activeKey].info?.readyState === 1" disable-transitions type="success" :style="{ fontWeight: 'bold' }">
+                {{ instances.clients[activeKey].config.name }}
+              </el-tag>
+              <el-tag v-if="instances.clients[activeKey].info?.readyState !== 1" disable-transitions type="info" :style="{ fontWeight: 'bold' }">
+                {{ instances.clients[activeKey].config.name }}
+              </el-tag>
+              <div style="padding-left: 10px; font-size: 12px">{{ instances.clients[activeKey].href }}</div>
             </div>
+            <el-button-group v-if="instances.clients[activeKey].info?.readyState !== 1">
+              <el-button @click="handleEditClient(instances.clients[activeKey].config.id)">配置</el-button>
+            </el-button-group>
             <div>
               <el-button
                 v-if="instances.clients[activeKey].info?.readyState !== 1"
@@ -419,7 +481,7 @@ const handlerClientSend = () => {
     <template #footer>
       <div class="dialog-footer">
         <el-button @click="addDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleAddCommit"> 添加 </el-button>
+        <el-button type="primary" @click="handleAddCommit">保存</el-button>
       </div>
     </template>
   </el-dialog>
