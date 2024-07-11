@@ -1,57 +1,45 @@
-import { createHash } from "node:crypto";
-import { createServer } from "node:http";
-import type { Socket } from "node:net";
-import type { WebsocketServer } from "..";
+import { createHash } from 'node:crypto';
+import { createServer } from 'node:http';
+import type { Socket } from 'node:net';
+import type { WebsocketServer } from '..';
 
 window.ws = {
   createWebSocketServer: (options) => {
     const socketKeys: string[] = [];
     const sockets: Record<string, Socket> = {};
 
-    const connectionHandlers: Parameters<WebsocketServer["onConnection"]>[0][] =
-      [];
-    const disconnectionHandlers: Parameters<
-      WebsocketServer["onDisconnection"]
-    >[0][] = [];
-    const messageHandlers: Parameters<WebsocketServer["onMessage"]>[0][] = [];
-    const broadcastHandlers: Parameters<WebsocketServer["onBroadcast"]>[0][] =
-      [];
-    const sendHandlers: Parameters<WebsocketServer["onSend"]>[0][] = [];
-    const listenHandlers: Parameters<WebsocketServer["onListen"]>[0][] = [];
-    const closeHandlers: Parameters<WebsocketServer["onClose"]>[0][] = [];
+    const connectionHandlers: Parameters<WebsocketServer['onConnection']>[0][] = [];
+    const disconnectionHandlers: Parameters<WebsocketServer['onDisconnection']>[0][] = [];
+    const messageHandlers: Parameters<WebsocketServer['onMessage']>[0][] = [];
+    const broadcastHandlers: Parameters<WebsocketServer['onBroadcast']>[0][] = [];
+    const sendHandlers: Parameters<WebsocketServer['onSend']>[0][] = [];
+    const listenHandlers: Parameters<WebsocketServer['onListen']>[0][] = [];
+    const closeHandlers: Parameters<WebsocketServer['onClose']>[0][] = [];
 
     const messageFragments: Record<string, Buffer[]> = {};
 
-    const port =
-      typeof options.port === "number"
-        ? options.port
-        : Number.parseInt(options.port);
+    const port = typeof options.port === 'number' ? options.port : Number.parseInt(options.port);
 
     const server = createServer((req, res) => {
-      if (req.method === "GET" && req.url) {
+      if (req.method === 'GET' && req.url) {
         const { headers } = req;
         // TODO: 暂时不对请求路径进行校验
         if (true) {
-          if (
-            headers.upgrade &&
-            headers.upgrade.toLowerCase() === "websocket"
-          ) {
-            const acceptKey = headers["sec-websocket-key"];
-            const hash = createHash("sha1")
-              .update(`${acceptKey}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`)
-              .digest("base64");
+          if (headers.upgrade && headers.upgrade.toLowerCase() === 'websocket') {
+            const acceptKey = headers['sec-websocket-key'];
+            const hash = createHash('sha1').update(`${acceptKey}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest('base64');
             const responseHeaders = [
-              "HTTP/1.1 101 Switching Protocols",
-              "Upgrade: websocket",
-              "Connection: Upgrade",
+              'HTTP/1.1 101 Switching Protocols',
+              'Upgrade: websocket',
+              'Connection: Upgrade',
               `Sec-WebSocket-Accept: ${hash}`,
             ];
-            req.socket.write(`${responseHeaders.join("\r\n")}\r\n\r\n`);
+            req.socket.write(`${responseHeaders.join('\r\n')}\r\n\r\n`);
             if (hash) {
               sockets[hash] = req.socket;
               socketKeys.push(hash);
               for (const handler of connectionHandlers) handler(hash);
-              req.socket.on("data", (buffer) => {
+              req.socket.on('data', (buffer) => {
                 const isFinalFrame = buffer[0] & 0x80;
                 const opcode = buffer[0] & 0x0f;
                 const isMasked = buffer[1] & 0x80;
@@ -68,10 +56,7 @@ window.ws = {
 
                 let payload = Buffer.alloc(payloadLength);
                 if (isMasked) {
-                  const maskingKey = buffer.slice(
-                    currentOffset,
-                    currentOffset + 4
-                  );
+                  const maskingKey = buffer.slice(currentOffset, currentOffset + 4);
                   currentOffset += 4;
 
                   for (let i = 0; i < payloadLength; i++) {
@@ -79,37 +64,32 @@ window.ws = {
                     payload[i] = byte ^ maskingKey[i % 4];
                   }
                 } else {
-                  payload = buffer.slice(
-                    currentOffset,
-                    currentOffset + payloadLength
-                  );
+                  payload = buffer.slice(currentOffset, currentOffset + payloadLength);
                 }
 
                 if (opcode === 0x01) {
                   // Text frame
-                  const message = payload.toString("utf8");
+                  const message = payload.toString('utf8');
                   if (isFinalFrame) {
-                    for (const handler of messageHandlers)
-                      handler(hash, message);
+                    for (const handler of messageHandlers) handler(hash, message);
                   } else {
                     if (!messageFragments[hash]) messageFragments[hash] = [];
                     messageFragments[hash].push(payload);
                   }
                 } else if (opcode === 0x00) {
                   // Continuation frame
-                  if (messageFragments[hash])
-                    messageFragments[hash].push(payload);
+                  if (messageFragments[hash]) messageFragments[hash].push(payload);
                 }
               });
 
-              req.socket.on("close", () => {
+              req.socket.on('close', () => {
                 delete sockets[hash];
                 socketKeys.splice(socketKeys.indexOf(hash), 1);
                 disconnectionHandlers.forEach((handler) => handler(hash));
               });
             }
           } else {
-            res.writeHead(426, { "Content-Length": "0" });
+            res.writeHead(426, { 'Content-Length': '0' });
             res.end();
           }
         } else {
