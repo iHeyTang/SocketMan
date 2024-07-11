@@ -29,21 +29,19 @@ type SocketManClientConfig = {
   name: string;
   // 简单描述
   description: string;
-  // 使用协议
-  protocol: string;
-  // 域名
-  serverHost: string;
-  // 端口号
-  serverPort: number;
+  // 链接的服务器地址
+  uri: string;
 }
 
 
-type LogType =
+type ServerLogType =
   | { type: 'message', messageType: 'receive' | 'send' | 'broadcast', clientKey: string, message: string }
   | { type: 'connection', clientKey: string }
   | { type: 'disconnection', clientKey: string }
   | { type: 'listen' }
   | { type: 'close' }
+
+type ClientLogType = | { type: 'message', messageType: 'receive' | 'send', message: string } | { type: 'connection', id: string } | { type: 'disconnection', id: string }
 
 /**
  * 服务端实例
@@ -53,7 +51,7 @@ type SocketServer = {
   config: SocketManServerConfig;
   server?: WebsocketServer;
   info?: ReturnType<WebsocketServer['getInfo']>;
-  logs: (LogType)[];
+  logs: (ServerLogType)[];
 }
 
 /**
@@ -63,9 +61,10 @@ type SocketClient = {
   href: string;
   config: SocketManClientConfig;
   socket?: WebSocket;
+  logs: (ClientLogType)[];
 }
 
-const messageTypeHighlight: Record<LogType['type'], string> = {
+const messageTypeHighlight: Record<ServerLogType['type'], string> = {
   message: 'blue',
   connection: 'green',
   disconnection: 'red',
@@ -80,7 +79,9 @@ const addType = ref<'server' | 'client'>('server')
 const infoTabKey = ref<'logs' | 'clients'>('logs')
 
 const transmitterClientKeys = ref<string[]>([])
-const textarea = ref('')
+
+const serverTextarea = ref('')
+const clientTextarea = ref('')
 
 const activeKey = ref<string>()
 
@@ -97,9 +98,7 @@ const addClientForm = reactive<SocketManClientConfig>({
   id: '',
   name: "ws://localhost:9290",
   description: '',
-  protocol: 'ws',
-  serverHost: 'localhost',
-  serverPort: 9290,
+  uri: 'ws://localhost:9290/ws',
 })
 
 const handleAddCommit = () => {
@@ -110,10 +109,11 @@ const handleAddCommit = () => {
       config: { ...addServerForm, id },
       logs: [],
     }
-  } else {
+  } else if (addType.value === 'client') {
     instances.clients[id] = {
-      href: `ws://${addClientForm.serverHost}:${addClientForm.serverPort}`,
+      href: addClientForm.uri,
       config: { ...addClientForm, id },
+      logs: [],
     }
   }
   addDialogVisible.value = false
@@ -144,7 +144,7 @@ const handleStartServer = (id: string) => {
     const inst = instances.servers[id];
     if (!inst) return
     inst.logs.push({ type: 'message', messageType: 'receive', clientKey: key, message })
-    const logsContainer = document.getElementById('logsContainer');
+    const logsContainer = document.getElementById('serverLogsContainer');
     // 在最底端或内容没有充满屏幕时进行自动滚动
     if (logsContainer && (logsContainer.scrollHeight === logsContainer.scrollTop || logsContainer.scrollHeight - logsContainer.scrollTop < logsContainer.clientHeight + 100)) {
       setTimeout(() => {
@@ -184,10 +184,55 @@ const handleCloseServer = (id: string) => {
   delete instances.servers[id].server;
 }
 
-const handlerSend = () => {
+const handlerServerSend = () => {
   const inst = activeKey.value ? instances.servers[activeKey.value] : undefined
   if (!inst) return
-  inst.server?.send(transmitterClientKeys.value, textarea.value)
+  inst.server?.send(transmitterClientKeys.value, serverTextarea.value)
+}
+
+const handleStartClient = (id: string) => {
+  const inst = instances.clients[id]
+  if (!inst) return
+  const socket = new WebSocket(inst.href);
+  instances.clients[id].socket = socket;
+
+  socket.onopen = () => {
+    inst.logs.push({ type: 'connection', id })
+  }
+
+  socket.onclose = () => {
+    inst.logs.push({ type: 'disconnection', id })
+  }
+
+  socket.onmessage = (event) => {
+    inst.logs.push({ type: 'message', messageType: 'receive', message: event.data })
+    const logsContainer = document.getElementById('clientLogsContainer');
+    // 在最底端或内容没有充满屏幕时进行自动滚动
+    if (logsContainer && (logsContainer.scrollHeight === logsContainer.scrollTop || logsContainer.scrollHeight - logsContainer.scrollTop < logsContainer.clientHeight + 100)) {
+      setTimeout(() => {
+        logsContainer.scrollTop = logsContainer.scrollHeight;
+      }, 0)
+    }
+  }
+}
+
+const handleCloseClient = (id: string) => {
+  instances.clients[id].socket?.close()
+  delete instances.clients[id].socket;
+}
+
+const handlerClientSend = () => {
+  const inst = activeKey.value ? instances.clients[activeKey.value] : undefined
+  if (!inst) return
+  inst.socket?.send(clientTextarea.value)
+  inst.logs.push({ type: 'message', messageType: 'send', message: clientTextarea.value })
+  const logsContainer = document.getElementById('clientLogsContainer');
+  // 在最底端或内容没有充满屏幕时进行自动滚动
+  if (logsContainer && (logsContainer.scrollHeight === logsContainer.scrollTop || logsContainer.scrollHeight - logsContainer.scrollTop < logsContainer.clientHeight + 100)) {
+    setTimeout(() => {
+      logsContainer.scrollTop = logsContainer.scrollHeight;
+    }, 0)
+  }
 }
 
 </script>
@@ -247,8 +292,9 @@ const handlerSend = () => {
             </div>
           </div>
         </el-header>
-        <el-main style="text-align: left;" v-if="activeKey">
-          <el-card id="logsContainer" v-if="infoTabKey === 'logs'" style="height: calc(100% - 4px); overflow: scroll;">
+        <el-main style="text-align: left;">
+          <el-card id="serverLogsContainer" v-if="infoTabKey === 'logs'"
+            style="height: calc(100% - 4px); overflow: scroll;">
             <div v-for="log of instances.servers[activeKey].logs" style="margin-bottom: 8px;">
               <div :style="{ color: messageTypeHighlight[log.type], width: '100%', whiteSpace: 'wrap' }">
                 <el-space>
@@ -276,9 +322,55 @@ const handlerSend = () => {
                 :value="client" />
             </el-select>
             <div style="display: flex; align-items: center; margin-top: 4px; ">
-              <el-input v-model="textarea" style="width: 100%;" :rows="5" type="textarea" placeholder="Please input"
-                resize="none" />
-              <el-button style="height: fit-content; margin-left: 12px;" @click="handlerSend">发送</el-button>
+              <el-input v-model="serverTextarea" style="width: 100%;" :rows="5" type="textarea"
+                placeholder="Please input" resize="none" />
+              <el-button style="height: fit-content; margin-left: 12px;" @click="handlerServerSend">发送</el-button>
+            </div>
+          </div>
+        </el-footer>
+      </el-container>
+      <el-container v-if="activeKey && instances.clients[activeKey]?.config">
+        <el-header height="fit-content" style="text-align: start; padding: 16px 16px 0 16px">
+          <div :style="{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', }">
+            <div>
+              <div :style="{ fontWeight: 'bold' }">{{ instances.clients[activeKey].config.name }}</div>
+              <div>({{ instances.clients[activeKey].href }})</div>
+              <div>{{ instances.clients[activeKey].config.description }}</div>
+            </div>
+            <div>
+              <el-button v-if="!instances.clients[activeKey].socket?.OPEN"
+                @click="handleStartClient(instances.clients[activeKey].config.id)">
+                启动
+              </el-button>
+              <el-button v-if="instances.clients[activeKey].socket?.OPEN"
+                @click="handleCloseClient(instances.clients[activeKey].config.id)">
+                关闭
+              </el-button>
+            </div>
+          </div>
+        </el-header>
+        <el-main style="text-align: left;" v-if="activeKey && instances.clients[activeKey]">
+          <el-card id="clientLogsContainer" style="height: calc(100% - 4px); overflow: scroll;">
+            <div v-for="log of instances.clients[activeKey].logs" style="margin-bottom: 8px;">
+              <div :style="{ color: messageTypeHighlight[log.type], width: '100%', whiteSpace: 'wrap' }">
+                <el-space>
+                  <div>{{ log.type }}</div>
+                  <div v-if="log.type === 'message'">{{ log.messageType }}</div>
+                </el-space>
+              </div>
+              <div v-if="log.type === 'message'" style="white-space: pre-wrap;word-wrap: break-word;">{{ log.message }}
+              </div>
+              <div v-if="log.type === 'connection'">{{ log.id }}</div>
+              <div v-if="log.type === 'disconnection'">{{ log.id }}</div>
+            </div>
+          </el-card>
+        </el-main>
+        <el-footer height="fit-content" style="margin-bottom: 12px">
+          <div style="height: 100%;">
+            <div style="display: flex; align-items: center; margin-top: 4px; ">
+              <el-input v-model="clientTextarea" style="width: 100%;" :rows="5" type="textarea"
+                placeholder="Please input" resize="none" />
+              <el-button style="height: fit-content; margin-left: 12px;" @click="handlerClientSend">发送</el-button>
             </div>
           </div>
         </el-footer>
@@ -308,11 +400,8 @@ const handlerSend = () => {
           <el-form-item label="Description">
             <el-input v-model="addClientForm.description" />
           </el-form-item>
-          <el-form-item label="Server Host">
-            <el-input v-model="addClientForm.serverHost" />
-          </el-form-item>
-          <el-form-item label="Server Port">
-            <el-input v-model="addClientForm.serverPort" />
+          <el-form-item label="Uri">
+            <el-input v-model="addClientForm.uri" />
           </el-form-item>
         </el-form>
       </el-tab-pane>
