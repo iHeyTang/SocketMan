@@ -11,8 +11,6 @@ type SocketManServerConfig = {
   id: string;
   // 名称，用于展示
   name: string;
-  // 简单描述
-  description: string;
   // 使用协议
   protocol: string;
   // 端口号
@@ -27,8 +25,6 @@ type SocketManClientConfig = {
   id: string;
   // 名称，用于展示
   name: string;
-  // 简单描述
-  description: string;
   // 链接的服务器地址
   uri: string;
 };
@@ -91,14 +87,12 @@ const instances = reactive<{ servers: Record<string, SocketServer>; clients: Rec
 const addServerForm = reactive<SocketManServerConfig>({
   id: '',
   name: 'ws://localhost:9290',
-  description: '',
   protocol: 'ws',
   port: 9290,
 });
 const addClientForm = reactive<SocketManClientConfig>({
   id: '',
   name: 'ws://localhost:9290',
-  description: '',
   uri: 'ws://localhost:9290/ws',
 });
 
