@@ -10,7 +10,7 @@ if (status) {
 
 // 保证构建可以成功
 try {
-  execSync('npm run build');
+  execSync('npm run build', { stdio: 'inherit' });
 } catch (e) {
   console.error('Build failed');
   process.exit(1);
