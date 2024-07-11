@@ -2,6 +2,8 @@
 
 适用于[utools](https://u.tools)， 模拟 websocket 的客户端与服务端，提高 websocket 调试体验。
 
+> 应用还没有上架 utools，正在进行中
+
 ## 核心功能
 
 ### Socket Server
