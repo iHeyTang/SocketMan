@@ -8,6 +8,14 @@ if (status) {
   process.exit(1);
 }
 
+// 保证构建可以成功
+try {
+  execSync('npm run build');
+} catch (e) {
+  console.error('Build failed');
+  process.exit(1);
+}
+
 /**
  * @typedef {'minor' | 'major' | 'patch'} releaseType
  */
