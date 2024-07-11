@@ -1,16 +1,16 @@
 {
   "name": "utools-plugin-socket-man",
   "private": true,
-  "version": "0.0.3",
+  "version": "0.0.2",
   "author": "iHeyTang",
   "description": "模拟websocket的客户端与服务端，提高websocket调试体验",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc && vite build",
     "preview": "vite preview",
-    "v:major": "npm version major",
-    "v:minor": "npm version minor",
-    "v:patch": "npm version patch"
+    "versions:major": "node ./scripts/version major",
+    "version:minor": "node ./scripts/version minor",
+    "version:patch": "node ./scripts/version patch"
   },
   "dependencies": {
     "element-plus": "^2.7.6",

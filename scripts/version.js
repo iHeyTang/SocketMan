@@ -4,7 +4,8 @@ const { execSync } = require('child_process');
 
 const status = execSync('git status --porcelain').toString().trim();
 if (status) {
-  throw new Error('Working directory or staging area is not clean. Please commit or stash your changes.');
+  console.log('Working directory or staging area is not clean. Please commit or stash your changes.');
+  process.exit(1);
 }
 
 /**
@@ -12,7 +13,8 @@ if (status) {
  */
 const releaseType = process.argv[0];
 if (!['minor', 'major', 'patch'].includes(upgrade)) {
-  throw new Error('Invalid version release type');
+  console.error('Invalid version release type');
+  process.exit(1);
 }
 
 const utoolsPluginJsonPath = '../plugin.json';
@@ -27,7 +29,8 @@ const packageJson = JSON.parse(packageJsonContent);
 const currentPackageJson = packageJson.version;
 
 if (currentUtoolsPluginVersion !== currentPackageJson) {
-  throw new Error('utools plugin version is not equal to package.json version');
+  console.error('utools plugin version is not equal to package.json version');
+  process.exec(1);
 }
 
 const newVersion = semver.inc(currentPackageJson, releaseType);
