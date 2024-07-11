@@ -1,7 +1,7 @@
 {
   "name": "utools-plugin-socket-man",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": "iHeyTang",
   "description": "模拟websocket的客户端与服务端，提高websocket调试体验",
   "scripts": {
