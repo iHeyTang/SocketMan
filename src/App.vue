@@ -145,7 +145,7 @@ const handleStartServer = (id: string) => {
     if (!inst) return
     inst.logs.push({ type: 'message', messageType: 'receive', clientKey: key, message })
     const logsContainer = document.getElementById('logsContainer');
-    if (logsContainer) {
+    if (logsContainer && logsContainer.scrollTop === logsContainer.scrollHeight) {
       setTimeout(() => {
         logsContainer.scrollTop = logsContainer.scrollHeight;
       }, 0)
