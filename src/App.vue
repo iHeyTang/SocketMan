@@ -284,7 +284,6 @@ const handlerClientSend = () => {
             <div>
               <div :style="{ fontWeight: 'bold' }">{{ instances.servers[activeKey].config.name }}</div>
               <div>({{ instances.servers[activeKey].href }})</div>
-              <div>{{ instances.servers[activeKey].config.description }}</div>
             </div>
             <el-radio-group v-if="instances.servers[activeKey].info?.listening" v-model="infoTabKey">
               <el-radio-button value="logs">Logs</el-radio-button>
@@ -339,7 +338,6 @@ const handlerClientSend = () => {
             <div>
               <div :style="{ fontWeight: 'bold' }">{{ instances.clients[activeKey].config.name }}</div>
               <div>({{ instances.clients[activeKey].href }})</div>
-              <div>{{ instances.clients[activeKey].config.description }}</div>
             </div>
             <div>
               <el-button v-if="!instances.clients[activeKey].socket?.OPEN" @click="handleStartClient(instances.clients[activeKey].config.id)">
@@ -384,9 +382,6 @@ const handlerClientSend = () => {
           <el-form-item label="Name">
             <el-input v-model="addServerForm.name" />
           </el-form-item>
-          <el-form-item label="Description">
-            <el-input v-model="addServerForm.description" />
-          </el-form-item>
           <el-form-item label="Port">
             <el-input v-model="addServerForm.port" />
           </el-form-item>
@@ -396,9 +391,6 @@ const handlerClientSend = () => {
         <el-form :model="addClientForm" label-width="auto" style="max-width: 600px">
           <el-form-item label="Name">
             <el-input v-model="addClientForm.name" />
-          </el-form-item>
-          <el-form-item label="Description">
-            <el-input v-model="addClientForm.description" />
           </el-form-item>
           <el-form-item label="Uri">
             <el-input v-model="addClientForm.uri" />
