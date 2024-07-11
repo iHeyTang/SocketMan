@@ -38,11 +38,16 @@ type SocketManClientConfig = {
   serverPort: number;
 }
 
-type SocketMan<T extends 'server' | 'client' = 'server' | 'client'> = {
-  type: T;
+type SocketServer = {
   href: string;
-  config: (T extends 'server' ? SocketManServerConfig : SocketManClientConfig);
-  socket: (T extends 'server' ? WebsocketServer : WebSocket) | undefined;
+  config: SocketManServerConfig;
+  server: WebsocketServer;
+}
+
+type SocketClient = {
+  href: string;
+  config: SocketManClientConfig;
+  socket: WebSocket;
 }
 
 
@@ -57,29 +62,31 @@ const socketClientConfigs = reactive<SocketManClientConfig[]>([]);
 const socketServers: Record<string, WebsocketServer> = {}
 const socketClients: Record<string, WebSocket> = {}
 
-// 当前激活的socket
-const activeSocket = computed<SocketMan | undefined>(() => {
-  if (activeKey.value) {
-    const server = socketServerConfigs.find(server => server.id === activeKey.value)
-    if (server) {
-      return {
-        type: 'server',
-        href: `${server.protocol}://localhost:${server.port}`,
-        config: server,
-        socket: socketServers[server.id]
-      }
-    }
-    const client = socketClientConfigs.find(client => client.id === activeKey.value)
-    if (client) {
-      return {
-        type: 'client',
-        href: `${client.protocol}://${client.serverHost}:${client.serverPort}`,
-        config: client,
-        socket: socketClients[client.id]
-      }
+
+const activeSocketServer = computed<SocketServer | undefined>(() => {
+  if (!activeKey.value) return
+  const config = socketServerConfigs.find(server => server.id === activeKey.value)
+  if (config) {
+    return {
+      href: `${config.protocol}://localhost:${config.port}`,
+      config: config,
+      server: socketServers[config.id]
     }
   }
 })
+
+const activeSocketClient = computed<SocketClient | undefined>(() => {
+  if (!activeKey.value) return
+  const config = socketClientConfigs.find(client => client.id === activeKey.value)
+  if (config) {
+    return {
+      href: `${config.protocol}://${config.serverHost}:${config.serverPort}`,
+      config: config,
+      socket: socketClients[config.id]
+    }
+  }
+})
+
 
 const addServerForm = reactive<SocketManServerConfig>({
   id: '',
@@ -117,7 +124,6 @@ const handleStartServer = (id: string) => {
   })
 
   server.onMessage((key, message) => {
-    console.log("🚀 ~ server.onMessage ~ message:", message)
     server.send(key, `response for ${message}`)
   })
 
@@ -158,23 +164,23 @@ const handleStartServer = (id: string) => {
         </div>
       </el-aside>
       <el-main :style="{ textAlign: 'left', }">
-        <div v-if="activeSocket?.type === 'server' && activeSocket.config">
+        <div v-if="activeSocketServer?.config">
           <div :style="{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0px 16px' }">
             <div>
-              <div :style="{ fontWeight: 'bold' }">{{ activeSocket.config.name }}</div>
-              <div>({{ activeSocket.href }})</div>
-              <div>{{ activeSocket.config.description }}</div>
+              <div :style="{ fontWeight: 'bold' }">{{ activeSocketServer.config.name }}</div>
+              <div>({{ activeSocketServer.href }})</div>
+              <div>{{ activeSocketServer.config.description }}</div>
             </div>
             <div>
-              <el-button @click="handleStartServer(activeSocket.config.id)">启动</el-button>
+              <el-button @click="handleStartServer(activeSocketServer.config.id)">启动</el-button>
             </div>
           </div>
           <el-divider />
         </div>
-        <div v-if="activeSocket?.type === 'client' && activeSocket.config">
-          <div :style="{ fontWeight: 'bold' }">{{ activeSocket.config.name }}</div>
-          <div>({{ activeSocket.href }})</div>
-          <div>{{ activeSocket.config.description }}</div>
+        <div v-if="activeSocketClient?.config">
+          <div :style="{ fontWeight: 'bold' }">{{ activeSocketClient.config.name }}</div>
+          <div>({{ activeSocketClient.href }})</div>
+          <div>{{ activeSocketClient.config.description }}</div>
           <el-divider />
         </div>
       </el-main>
