@@ -1,5 +1,5 @@
-import type { Server } from "node:http";
-import type { Socket } from "node:net";
+import type { Server } from 'node:http';
+import type { Socket } from 'node:net';
 
 export interface WebsocketServer {
   getInfo: () => {
@@ -20,9 +20,7 @@ export interface WebsocketServer {
 }
 
 export interface Ws {
-  createWebSocketServer: (options: {
-    port: number | string;
-  }) => WebsocketServer;
+  createWebSocketServer: (options: { port: number | string }) => WebsocketServer;
 }
 declare global {
   interface Window {

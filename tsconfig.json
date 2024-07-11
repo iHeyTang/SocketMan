@@ -21,15 +21,6 @@
     "noFallthroughCasesInSwitch": true,
     "types": ["node", "utools-api-types"]
   },
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.d.ts",
-    "src/**/*.tsx",
-    "src/**/*.vue",
-    "*.d.ts",
-    "utools/**/*.ts",
-    "electron/**/*.ts",
-    "electron/**/*.d.ts"
-  ],
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue", "*.d.ts", "utools/**/*.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
