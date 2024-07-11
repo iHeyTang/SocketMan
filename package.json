@@ -8,9 +8,9 @@
     "dev": "vite",
     "build": "vue-tsc && vite build",
     "preview": "vite preview",
-    "version:major": "npm version major",
-    "version:minor": "npm version minor",
-    "version:patch": "npm version patch"
+    "v:major": "npm version major",
+    "v:minor": "npm version minor",
+    "v:patch": "npm version patch"
   },
   "dependencies": {
     "element-plus": "^2.7.6",

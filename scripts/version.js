@@ -30,7 +30,6 @@ if (currentUtoolsPluginVersion !== currentPackageJson) {
   throw new Error('utools plugin version is not equal to package.json version');
 }
 
-// 步骤3: 提升版本号
 const newVersion = semver.inc(currentPackageJson, releaseType);
 
 utoolsPluginJson.version = newVersion;
@@ -41,8 +40,3 @@ fs.writeFileSync(utoolsPluginJsonPath, newUtoolsPluginJsonContent, 'utf8');
 
 const newPackageJsonContent = JSON.stringify(packageJson, null, 2);
 fs.writeFileSync(packageJsonPath, newPackageJsonContent, 'utf8');
-
-// 步骤5: 使用git命令打标签并推送
-execSync('git add .');
-// execSync('git commit -m "version: ' + newVersion + '"');
-// execSync(`git tag v${newVersion}`);
