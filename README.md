@@ -2,7 +2,7 @@
 
 适用于[utools](https://u.tools)， 模拟 websocket 的客户端与服务端，提高 websocket 调试体验。
 
-> 应用还没有上架 utools，正在进行中
+> 应用已上架 utools，应用市场搜索 Socket Man，欢迎评价反馈
 
 ## 核心功能
 
