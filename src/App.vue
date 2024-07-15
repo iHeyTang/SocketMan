@@ -2,32 +2,7 @@
 import { ref, reactive } from 'vue';
 import { CirclePlus } from '@element-plus/icons-vue';
 import type { WebsocketServer } from '..';
-
-/**
- * 服务端配置
- */
-type SocketManServerConfig = {
-  // 唯一标识符
-  id: string;
-  // 名称，用于展示
-  name: string;
-  // 使用协议
-  protocol: string;
-  // 端口号
-  port: string;
-};
-
-/**
- * 客户端配置
- */
-type SocketManClientConfig = {
-  // 唯一标识符
-  id: string;
-  // 名称，用于展示
-  name: string;
-  // 链接的服务器地址
-  uri: string;
-};
+import ConfigForm, { ConfigFormProps, ConfigFormRef, SocketManClientConfig, SocketManServerConfig } from './ConfigForm.vue';
 
 type ServerLogType =
   | { type: 'message'; messageType: 'receive' | 'send' | 'broadcast'; clientKey: string; message: string }
@@ -74,10 +49,6 @@ const messageTypeHighlight: Record<ServerLogType['type'], string> = {
   error: 'red',
 };
 
-const addDialogVisible = ref(false);
-const addType = ref<'server' | 'client'>('server');
-const formMode = ref<'add' | 'edit'>('add');
-
 const infoTabKey = ref<'logs' | 'clients'>('logs');
 
 const transmitterClientKeys = ref<string[]>([]);
@@ -89,44 +60,37 @@ const activeKey = ref<string>();
 
 const instances = reactive<{ servers: Record<string, SocketServer>; clients: Record<string, SocketClient> }>({ servers: {}, clients: {} });
 
-const addServerForm = reactive<SocketManServerConfig>({
-  id: '',
-  name: 'ws://localhost:9290',
-  protocol: 'ws',
-  port: '9290',
-});
-const addClientForm = reactive<SocketManClientConfig>({
-  id: '',
-  name: 'ws://localhost:9290',
-  uri: 'ws://localhost:9290/ws',
-});
+const configFormRef = ref<ConfigFormRef | null>(null);
 
-const handleAddCommit = () => {
-  if (formMode.value === 'add') {
+const handleAddCommit: ConfigFormProps['handleAddCommit'] = (data) => {
+  if (data.mode === 'add') {
     const id = Date.now().toString();
-    if (addType.value === 'server') {
+    if (data.type === 'server') {
+      const formValue = data.formValue as SocketManServerConfig;
       instances.servers[id] = {
-        href: `ws://localhost:${addServerForm.port}`,
-        config: { ...addServerForm, id },
+        href: `ws://localhost:${formValue.port}`,
+        config: { ...formValue, id },
         logs: [],
       };
-    } else if (addType.value === 'client') {
+    } else if (data.type === 'client') {
+      const formValue = data.formValue as SocketManClientConfig;
       instances.clients[id] = {
-        href: addClientForm.uri,
-        config: { ...addClientForm, id },
+        href: formValue.uri,
+        config: { ...formValue, id },
         logs: [],
       };
     }
   } else {
-    if (addType.value === 'server') {
-      instances.servers[addServerForm.id].config = { ...addServerForm };
-      instances.servers[addServerForm.id].href = `ws://localhost:${addServerForm.port}`;
-    } else if (addType.value === 'client') {
-      instances.clients[addClientForm.id].config = { ...addClientForm };
-      instances.clients[addClientForm.id].href = addClientForm.uri;
+    if (data.type === 'server') {
+      const formValue = data.formValue as SocketManServerConfig;
+      instances.servers[formValue.id].config = { ...formValue } as SocketManServerConfig;
+      instances.servers[formValue.id].href = `ws://localhost:${formValue.port}`;
+    } else if (data.type === 'client') {
+      const formValue = data.formValue as SocketManClientConfig;
+      instances.clients[formValue.id].config = { ...formValue };
+      instances.clients[formValue.id].href = formValue.uri;
     }
   }
-  addDialogVisible.value = false;
 };
 
 const autoScroll = (eleId: string) => {
@@ -270,23 +234,13 @@ const handlerClientSend = () => {
 const handleEditServer = (id: string) => {
   const inst = instances.servers[id];
   if (!inst) return;
-  addType.value = 'server';
-  addServerForm.id = inst.config.id;
-  addServerForm.name = inst.config.name;
-  addServerForm.port = inst.config.port;
-  formMode.value = 'edit';
-  addDialogVisible.value = true;
+  configFormRef.value?.show({ mode: 'edit', type: 'server', initValues: inst.config });
 };
 
 const handleEditClient = (id: string) => {
   const inst = instances.clients[id];
   if (!inst) return;
-  addType.value = 'client';
-  addClientForm.id = inst.config.id;
-  addClientForm.name = inst.config.name;
-  addClientForm.uri = inst.config.uri;
-  formMode.value = 'edit';
-  addDialogVisible.value = true;
+  configFormRef.value?.show({ mode: 'edit', type: 'client', initValues: inst.config });
 };
 </script>
 
@@ -323,16 +277,7 @@ const handleEditClient = (id: string) => {
           </el-sub-menu>
         </el-menu>
         <div :style="{ position: 'absolute', left: 0, bottom: 0, padding: '20px', width: '160px', display: 'flex', justifyContent: 'center' }">
-          <el-button
-            @click="
-              formMode = 'add';
-              addDialogVisible = true;
-            "
-            :icon="CirclePlus"
-            :style="{ width: '100%' }"
-          >
-            添加
-          </el-button>
+          <el-button @click="configFormRef?.show({ mode: 'add', type: 'server' })" :icon="CirclePlus" :style="{ width: '100%' }"> 添加 </el-button>
         </div>
       </el-aside>
       <el-container v-if="activeKey && instances.servers[activeKey]?.config">
@@ -455,36 +400,7 @@ const handleEditClient = (id: string) => {
       </el-container>
     </el-container>
   </div>
-  <el-dialog v-model="addDialogVisible" title="Configuration" width="500">
-    <el-tabs v-model="addType">
-      <el-tab-pane label="Server" name="server">
-        <el-form :model="addServerForm" label-width="auto" style="max-width: 600px">
-          <el-form-item label="Name">
-            <el-input v-model="addServerForm.name" />
-          </el-form-item>
-          <el-form-item label="Port">
-            <el-input v-model="addServerForm.port" />
-          </el-form-item>
-        </el-form>
-      </el-tab-pane>
-      <el-tab-pane label="Client" name="client">
-        <el-form :model="addClientForm" label-width="auto" style="max-width: 600px">
-          <el-form-item label="Name">
-            <el-input v-model="addClientForm.name" />
-          </el-form-item>
-          <el-form-item label="Uri">
-            <el-input v-model="addClientForm.uri" />
-          </el-form-item>
-        </el-form>
-      </el-tab-pane>
-    </el-tabs>
-    <template #footer>
-      <div class="dialog-footer">
-        <el-button @click="addDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleAddCommit">保存</el-button>
-      </div>
-    </template>
-  </el-dialog>
+  <ConfigForm ref="configFormRef" :handle-add-commit="handleAddCommit" />
 </template>
 
 <style scoped>
